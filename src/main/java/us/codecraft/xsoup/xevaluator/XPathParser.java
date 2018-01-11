@@ -25,6 +25,23 @@ public class XPathParser {
 
     private static final String[] HIERARCHY_COMBINATORS = new String[]{"//", "/", "|"};
 
+    /**
+     *   //self 节点自身
+         //parent 父节点
+         //child 直接子节点
+         //ancestor 全部祖先节点 父亲，爷爷 ， 爷爷的父亲...
+         //ancestor-or-self全部祖先节点和自身节点
+         //descendant 全部子代节点 儿子，孙子，孙子的儿子...
+         //descendant-or-self 全部子代节点和自身
+         //preceding-sibling 节点前面的全部同胞节点
+         //following-sibling 节点后面的全部同胞节点
+         //轴实用扩展
+         //preceding-sibling-one 前一个同胞节点（扩展）
+         //following-sibling-one 返回下一个同胞节点(扩展) 语法
+         //sibling 全部同胞（扩展）
+     */
+    private static final String[] AXIS_ARRAY = new String[]{"/self", "/parent", "/child", "/ancestor", "/ancestor-or-self", "/descendant", "/descendant-or-self", "/preceding-sibling", "/following-sibling", "/preceding-sibling-one", "/following-sibling-one", "/sibling"};
+
     private static final Map<String, FunctionEvaluator> FUNCTION_MAPPING = new HashMap<String, FunctionEvaluator>();
     static {
         FUNCTION_MAPPING.put("contains", new FunctionEvaluator() {
@@ -70,9 +87,12 @@ public class XPathParser {
             if (tq.matchChomp(OR_COMBINATOR)) {
                 tq.consumeWhitespace();
                 return combineXPathEvaluator(tq.remainder());
-            } else if (tq.matchesAny(HIERARCHY_COMBINATORS)) {
+            } else if(tq.matchesAny(AXIS_ARRAY)){
+                //增加axis支持
+                return combineAxisEvaluator(tq.remainder());
+            }else if (tq.matchesAny(HIERARCHY_COMBINATORS)) {
                 combinator(tq.consumeAny(HIERARCHY_COMBINATORS));
-            } else {
+            }else {
                 findElements();
             }
             tq.consumeWhitespace();
@@ -94,6 +114,10 @@ public class XPathParser {
             return new DefaultXPathEvaluator(evals.get(0), elementOperator);
 
         return new DefaultXPathEvaluator(new CombiningEvaluator.And(evals), elementOperator);
+    }
+
+    private XPathEvaluator combineAxisEvaluator(String subQuery) {
+        return new AxisEvaluator(subQuery);
     }
 
     private void combinator(String combinator) {
@@ -155,13 +179,13 @@ public class XPathParser {
             allElements();
         } else if (tq.matchesRegex("\\w+\\(.*\\).*")) {
             consumeOperatorFunction();
-        } else if (tq.matchesWord()) {
+        }else if (tq.matchesWord()) {
             byTag();
         } else if (tq.matchesRegex("\\[\\d+\\]")) {
             byNth();
         } else if (tq.matches("[")) {
             evals.add(consumePredicates(tq.chompBalanced('[', ']')));
-        } else {
+        }else {
             // unhandled
             throw new Selector.SelectorParseException("Could not parse query '%s': unexpected token at '%s'", query, tq.remainder());
         }
@@ -269,6 +293,11 @@ public class XPathParser {
         String nth = tq.chompBalanced('[', ']');
         evals.add(new XEvaluators.IsNthOfType(0, Integer.parseInt(nth)));
     }
+
+//    private void byAxis() {
+//       // String nth = tq.chompBalanced('[', ']');
+//        evals.add(new AxisEvaluator(tq));
+//    }
 
     private void consumeAttribute() {
         tq.consume("@");
